@@ -25,7 +25,7 @@ Testler: `npm test` — zamanlama kuralları ve API uçları; API testleri gerç
 1. `npx wrangler login`
 2. `npx wrangler d1 create reminder-app-db` → çıkan `database_id`'yi `wrangler.jsonc` içine yaz
 3. `npm run db:remote`
-4. `npx wrangler secret put VAPID_PRIVATE_KEY` → `.dev.vars` içindeki değeri (tırnaklar olmadan) yapıştır
+4. `sed -n "s/^VAPID_PRIVATE_KEY='\(.*\)'$/\1/p" .dev.vars | npx wrangler secret put VAPID_PRIVATE_KEY` (elle yapıştırma yok; sonra `/api/health` `"ok": true` dönmeli)
 5. `npm run deploy`
 
 Sonraki güncellemeler için sadece `npm run deploy`.

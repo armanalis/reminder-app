@@ -14,7 +14,7 @@ import {
 } from "../shared/schedule";
 import { asLang, t, type Lang } from "../shared/i18n";
 import type { ListSettings, Todo } from "../shared/types";
-import { sendPush } from "./push";
+import { parseVapidKey, sendPush } from "./push";
 
 // Ücretsiz planda bir çalıştırmada en fazla 50 dış istek yapılabilir.
 const PUSH_BATCH = 40;
@@ -23,6 +23,8 @@ const MAX_TITLE = 200;
 const PAIR_CODE_TTL = 10 * MINUTE;
 /** Bu süredir açılmamış cihazlar ve sahipsiz listeler silinir. */
 const STALE_DEVICE_MS = 180 * 24 * HOUR;
+/** Hiçbir cihaza ulaşamayan bildirim bu kadar sonra yeniden denenir. */
+const RETRY_FAILED_MS = 5 * MINUTE;
 
 type TodoRow = {
   id: string;
@@ -163,6 +165,21 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
 
   if (path === "/api/config" && req.method === "GET") {
     return json({ vapidPublicKey: env.VAPID_PUBLIC_KEY });
+  }
+
+  // Dış izleme için: anahtar bozuksa ya da bildirimler takılı kaldıysa 503 döner.
+  if (path === "/api/health" && req.method === "GET") {
+    const vapidKeyOk = parseVapidKey(env.VAPID_PRIVATE_KEY) !== null;
+    const stuck = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM todos t
+       WHERE t.done = 0 AND t.notify_failing_since < ?
+         AND EXISTS (SELECT 1 FROM devices d WHERE d.list_id = t.list_id AND d.subscription IS NOT NULL)`,
+    )
+      .bind(Date.now() - 15 * MINUTE)
+      .first<{ n: number }>();
+    const overdueReminders = stuck?.n ?? 0;
+    const ok = vapidKeyOk && overdueReminders === 0;
+    return json({ ok, vapidKeyOk, overdueReminders }, ok ? 200 : 503);
   }
 
   const deviceId = req.headers.get("x-device-id");
@@ -531,15 +548,19 @@ async function sendDueReminders(env: Env) {
   const goneDevices = new Set<string>();
   const updates: D1PreparedStatement[] = [];
   let sentCount = 0;
+  let failedCount = 0;
 
   await Promise.all(
     due.map(async (todo) => {
       const targets = (byList.get(todo.list_id) ?? []).slice(0, 5);
       const settings = rowToSettings(todo);
+      let attempted = 0;
+      let delivered = 0;
       await Promise.all(
         targets.map(async (d) => {
           if (sentCount >= PUSH_BATCH) return;
           sentCount++;
+          attempted++;
           const deviceLang = asLang(d.lang);
           const result = await sendPush(env, d.subscription, {
             title: todo.title,
@@ -553,11 +574,23 @@ async function sendDueReminders(env: Env) {
             ],
           });
           if (result === "gone") goneDevices.add(d.id);
+          if (result === "sent") delivered++;
         }),
       );
-      // Başarısız olsa da sonraki zamana geçilir; aksi halde her dakika tekrar denenir.
+      // Bu turda hiç denenmediyse (gönderim sınırı) bir sonraki dakika tekrar sıraya girer.
+      if (!attempted) return;
+      // Hiçbir cihaza ulaşmadıysa bildirim kaybolmasın: yarına atlamak yerine kısa süre sonra yeniden dene.
+      if (!delivered) {
+        failedCount++;
+        updates.push(
+          env.DB.prepare(
+            "UPDATE todos SET next_notify_at = ?, notify_failing_since = COALESCE(notify_failing_since, ?) WHERE id = ?",
+          ).bind(now + RETRY_FAILED_MS, now, todo.id),
+        );
+        return;
+      }
       updates.push(
-        env.DB.prepare("UPDATE todos SET next_notify_at = ?, last_notified_at = ? WHERE id = ?").bind(
+        env.DB.prepare("UPDATE todos SET next_notify_at = ?, last_notified_at = ?, notify_failing_since = NULL WHERE id = ?").bind(
           // notify_at geçtiyse kendiliğinden devre dışı kalır; sonrası sabit aralık ya da kademeli kural.
           nextNotifyAt(todo.deadline, now, settings, { notifyAt: todo.notify_at, everyHours: todo.notify_every_h }),
           now,
@@ -573,6 +606,7 @@ async function sendDueReminders(env: Env) {
   updates.push(env.DB.prepare("DELETE FROM pair_codes WHERE expires_at < ?").bind(now));
   await env.DB.batch(updates);
   console.log(`reminders: ${due.length} todos, ${sentCount} pushes, ${goneDevices.size} expired devices`);
+  if (failedCount) console.error(`reminders: ${failedCount} todos undelivered, retrying in 5 min`);
 }
 
 /** Terk edilmiş cihazları, sahipsiz listeleri ve notlarını siler. Günde bir çalışır. */

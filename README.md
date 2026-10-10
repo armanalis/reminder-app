@@ -25,7 +25,7 @@ Tests: `npm test` — scheduling rules plus the API endpoints, which run against
 1. `npx wrangler login`
 2. `npx wrangler d1 create reminder-app-db` → copy the returned `database_id` into `wrangler.jsonc`
 3. `npm run db:remote`
-4. `npx wrangler secret put VAPID_PRIVATE_KEY` → paste the value from `.dev.vars` (without quotes)
+4. `sed -n "s/^VAPID_PRIVATE_KEY='\(.*\)'$/\1/p" .dev.vars | npx wrangler secret put VAPID_PRIVATE_KEY` (no copy-paste; then check `/api/health` returns `"ok": true`)
 5. `npm run deploy`
 
 After that, updates are just `npm run deploy`.
