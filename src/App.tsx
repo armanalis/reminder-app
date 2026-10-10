@@ -531,8 +531,22 @@ function RepeatPicker({
 }
 
 /** Bildirimin kaç saatte bir tekrarlanacağı. Boşsa kademeli varsayılan işler. */
-function EveryPicker({ value, t, onChange }: { value: number | null; t: T; onChange: (v: number | null) => void }) {
-  const isPreset = (v: number | null) => v === null || (EVERY_HOURS_CHOICES as readonly number[]).includes(v);
+function EveryPicker({
+  value,
+  deadline,
+  t,
+  onChange,
+}: {
+  value: number | null;
+  deadline: number | null;
+  t: T;
+  onChange: (v: number | null) => void;
+}) {
+  // Seçilen saate kalan süre de öneri olsun: 8 saat sonraki ilaç → "8 saatte bir".
+  const untilDeadline = deadline === null ? null : normalizeEveryHours(Math.round((deadline - Date.now()) / HOUR));
+  const choices: number[] = [...EVERY_HOURS_CHOICES];
+  if (untilDeadline !== null && !choices.includes(untilDeadline)) choices.unshift(untilDeadline);
+  const isPreset = (v: number | null) => v === null || choices.includes(v);
   const [custom, setCustom] = useState(!isPreset(value));
   const [draft, setDraft] = useState(String(value ?? ""));
   const showCustom = value !== null && (custom || !isPreset(value));
@@ -547,7 +561,7 @@ function EveryPicker({ value, t, onChange }: { value: number | null; t: T; onCha
         <button type="button" className={`chip ${value === null ? "on" : ""}`} onClick={() => pick(null)}>
           {t("everyAuto")}
         </button>
-        {EVERY_HOURS_CHOICES.map((h) => (
+        {choices.map((h) => (
           <button
             key={h}
             type="button"
@@ -660,7 +674,7 @@ function AddForm({
             }}
           />
           {deadline !== null && <RepeatPicker value={repeat} disabled={false} t={t} onChange={setRepeat} />}
-          <EveryPicker value={everyHours} t={t} onChange={setEveryHours} />
+          <EveryPicker value={everyHours} deadline={deadline} t={t} onChange={setEveryHours} />
         </div>
       )}
     </form>
@@ -778,7 +792,7 @@ function EditSheet({
       <RepeatPicker value={repeat} disabled={deadline === null} t={t} onChange={setRepeat} />
       {deadline === null && <p className="hint">{t("needDate")}</p>}
 
-      <EveryPicker value={everyHours} t={t} onChange={setEveryHours} />
+      <EveryPicker value={everyHours} deadline={deadline} t={t} onChange={setEveryHours} />
 
       {!todo.done && (
         <>
