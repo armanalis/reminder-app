@@ -44,6 +44,9 @@ const tr: Dict = {
   everyLabel: "Tekrar sıklığı",
   everyAuto: "Otomatik",
   everyHours: "{n} saatte bir",
+  everyDaily: "Günde bir",
+  everyCustom: "Özel",
+  everyCustomUnit: "saatte bir (1-168)",
   everyHint: "İlk bildirimden sonra bu aralıkla tekrarlar.",
   autoHint: "Otomatik: son tarih yaklaştıkça sıklaşır.",
 
@@ -199,6 +202,9 @@ const en: Dict = {
   everyLabel: "Repeat every",
   everyAuto: "Automatic",
   everyHours: "Every {n} h",
+  everyDaily: "Once a day",
+  everyCustom: "Custom",
+  everyCustomUnit: "hours (1-168)",
   everyHint: "After the first reminder it repeats at this interval.",
   autoHint: "Automatic: reminders get closer together as the deadline nears.",
 

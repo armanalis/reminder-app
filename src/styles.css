@@ -62,8 +62,14 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -280,6 +286,19 @@ select {
   outline: none;
 }
 
+.every-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.every-custom .date-input {
+  width: 5.5em;
+}
+
 .date-input:focus,
 .pair-input:focus,
 .search-input:focus,
@@ -493,6 +512,7 @@ select:focus {
 .overlay {
   position: fixed;
   inset: 0;
+  overscroll-behavior: contain;
   background: rgb(0 0 0 / 0.45);
   display: flex;
   align-items: flex-end;
@@ -503,13 +523,24 @@ select:focus {
 
 .sheet {
   width: min(600px, 100%);
-  max-height: 88vh;
+  /* iOS'ta vh adres çubuğu/ana ekran çizgisini saymaz; dvh gerçek görünür yüksekliktir. */
+  max-height: calc(88vh - env(safe-area-inset-top));
+  max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + 12px));
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg);
   border-radius: 22px 22px 0 0;
-  padding: 6px 16px calc(20px + env(safe-area-inset-bottom));
+  padding: 6px max(16px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
   animation: rise 0.2s ease;
   outline: none;
+}
+
+.sheet-body > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (min-width: 640px) {
@@ -519,6 +550,7 @@ select:focus {
   .sheet {
     border-radius: 22px;
     max-height: 84vh;
+    max-height: 84dvh;
   }
 }
 
@@ -558,6 +590,8 @@ select:focus {
 
 .sheet-body {
   display: grid;
+  /* Sütun en geniş öğeye göre büyümesin; iOS'ta input'un doğal genişliği ekranı taşırıyordu. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding-bottom: 8px;
 }
@@ -611,8 +645,14 @@ select:focus {
   gap: 10px;
 }
 
+.pair > button {
+  flex: none;
+}
+
 .pair-input {
   flex: 1;
+  /* iOS input'a karakter sayısına göre doğal genişlik verir; 0'dan başlayıp esnesin. */
+  width: 0;
   min-width: 0;
   letter-spacing: 0.3em;
 }

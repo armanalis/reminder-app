@@ -4,10 +4,12 @@ import {
   DEFAULT_SETTINGS,
   EVERY_HOURS_CHOICES,
   HOUR,
+  MAX_EVERY_HOURS,
   MINUTE,
   dayKey,
   formatClock,
   formatDuration,
+  normalizeEveryHours,
   type Intensity,
   type Repeat,
 } from "../shared/schedule";
@@ -530,24 +532,64 @@ function RepeatPicker({
 
 /** Bildirimin kaç saatte bir tekrarlanacağı. Boşsa kademeli varsayılan işler. */
 function EveryPicker({ value, t, onChange }: { value: number | null; t: T; onChange: (v: number | null) => void }) {
+  const isPreset = (v: number | null) => v === null || (EVERY_HOURS_CHOICES as readonly number[]).includes(v);
+  const [custom, setCustom] = useState(!isPreset(value));
+  const [draft, setDraft] = useState(String(value ?? ""));
+  const showCustom = value !== null && (custom || !isPreset(value));
+  const pick = (v: number | null) => {
+    setCustom(false);
+    onChange(v);
+  };
   return (
     <>
       <span className="field-label">{t("everyLabel")}</span>
       <div className="chips">
-        <button type="button" className={`chip ${value === null ? "on" : ""}`} onClick={() => onChange(null)}>
+        <button type="button" className={`chip ${value === null ? "on" : ""}`} onClick={() => pick(null)}>
           {t("everyAuto")}
         </button>
         {EVERY_HOURS_CHOICES.map((h) => (
           <button
             key={h}
             type="button"
-            className={`chip ${value === h ? "on" : ""}`}
-            onClick={() => onChange(h)}
+            className={`chip ${value === h && !showCustom ? "on" : ""}`}
+            onClick={() => pick(h)}
           >
-            {t("everyHours", { n: h })}
+            {h === 24 ? t("everyDaily") : t("everyHours", { n: h })}
           </button>
         ))}
+        <button
+          type="button"
+          className={`chip ${showCustom ? "on" : ""}`}
+          onClick={() => {
+            const n = value ?? 2;
+            setCustom(true);
+            setDraft(String(n));
+            onChange(n);
+          }}
+        >
+          {t("everyCustom")}
+        </button>
       </div>
+      {showCustom && (
+        <label className="every-custom">
+          <input
+            className="date-input"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_EVERY_HOURS}
+            step={1}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              const n = normalizeEveryHours(Number(e.target.value));
+              if (n !== null) onChange(n);
+            }}
+            onBlur={() => setDraft(String(value))}
+          />
+          {t("everyCustomUnit")}
+        </label>
+      )}
       <p className="hint">{value === null ? t("autoHint") : t("everyHint")}</p>
     </>
   );
@@ -641,7 +683,13 @@ function SheetShell({
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     ref.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+    // Panel açıkken arka sayfa kaymasın (iOS'ta panel yerinden oynuyordu).
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
   return (

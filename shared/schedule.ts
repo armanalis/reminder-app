@@ -15,8 +15,8 @@ export type NotifyRule = {
   everyHours?: number | null;
 };
 
-/** Arayüzdeki "kaç saatte bir" seçenekleri. */
-export const EVERY_HOURS_CHOICES = [1, 2, 3, 6, 12, 24] as const;
+/** Arayüzdeki hazır "kaç saatte bir" önerileri; gerisi özel girişle. */
+export const EVERY_HOURS_CHOICES = [1, 3, 24] as const;
 export const MAX_EVERY_HOURS = 168; // 1 hafta
 
 export function normalizeEveryHours(v: unknown): number | null {
